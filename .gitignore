@@ -1,0 +1,8 @@
+# build intermediates and heavy sources (regenerate with the build scripts)
+node_modules/
+build/node_modules/
+build/out/
+source/
+web/
+.claude/
+*.blend1

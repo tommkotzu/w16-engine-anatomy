@@ -1,0 +1,355 @@
+<title>W16 Engine Anatomy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Saira+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: full-bleed engine stage; chapter sheet on the left, instrument HUD top-right,
+   chapter rail + transport along the bottom. Heat-tint palette: the four strokes run
+   cold-to-hot like temper colours on a titanium exhaust. Single committed dark look. */
+:root {
+  color-scheme: dark;
+  --bg: #090d10;
+  --bg-2: #131a20;
+  --panel: rgba(11, 16, 20, 0.86);
+  --panel-solid: #0e1418;
+  --line: #24303a;
+  --line-2: #364552;
+  --fg: #e6ebee;
+  --muted: #93a0aa;
+  --faint: #5f6c76;
+  --intake: #6cb4ff;
+  --compress: #a98bff;
+  --power: #ffc56e;
+  --exhaust: #d4864e;
+  --accent: var(--power);
+  --ghost: #8fb3cc;
+  --display: "Saira Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
+  --r: 6px;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 400 14px/1.55 var(--body);
+  -webkit-font-smoothing: antialiased; overflow: hidden;
+}
+#app { position: relative; height: 100%; overflow: hidden; isolation: isolate; }
+#stage { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+#stage.hovering { cursor: pointer; }
+
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- brand */
+.brand {
+  position: absolute; top: var(--s4); left: var(--s5); z-index: 3;
+  display: flex; align-items: baseline; gap: var(--s3); pointer-events: none;
+}
+.brand b { font: 700 22px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
+.brand span { font: 400 11px/1 var(--mono); letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; }
+
+/* ---------- chapter sheet */
+#panel {
+  position: absolute; z-index: 3; left: var(--s5); top: 64px;
+  width: min(372px, calc(100% - 48px)); max-height: calc(100% - 64px - 132px);
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+}
+#panel .head { padding: var(--s4) var(--s5) 0; display: grid; gap: var(--s2); }
+.kicker { display: flex; align-items: center; gap: var(--s2); font: 500 11px/1 var(--mono); letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; }
+.kicker .num { color: var(--accent); }
+.kicker .rule { flex: 1; height: 1px; background: var(--line); }
+#chTitle { margin: 0; font: 600 34px/1.0 var(--display); letter-spacing: 0.01em; text-wrap: balance; }
+#panel .scroll { overflow: auto; padding: var(--s3) var(--s5) var(--s5); display: grid; gap: var(--s4); min-height: 0; }
+#chBody p { margin: 0 0 var(--s3); color: #c9d2d8; max-width: 62ch; }
+#chBody p:last-child { margin-bottom: 0; }
+#chBody strong { color: var(--fg); font-weight: 600; }
+#panel .sheet-toggle { display: none; }
+
+.specs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.specs div { padding: var(--s2) var(--s3); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-width: 0; }
+.specs dt { font: 500 10px/1.2 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+.specs dd { margin: 2px 0 0; font: 600 20px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.specs dd small { font: 400 12px var(--body); color: var(--muted); margin-left: 2px; }
+
+.label { font: 500 10px/1.2 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+
+/* stroke stepper */
+.strokes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.strokes button {
+  appearance: none; cursor: pointer; padding: 9px 4px 8px; border-radius: 4px;
+  background: transparent; border: 1px solid var(--line-2); color: var(--muted);
+  font: 600 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase;
+  border-top: 3px solid var(--c);
+}
+.strokes button:hover { color: var(--fg); background: rgba(255,255,255,0.03); }
+.strokes button[aria-pressed="true"] { color: var(--bg); background: var(--c); border-color: var(--c); }
+.stroke-now { display: grid; gap: 4px; padding: var(--s3); border-radius: 4px; background: rgba(255,255,255,0.025); border-left: 3px solid var(--c, var(--line-2)); }
+.stroke-now b { font: 600 20px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; color: var(--c); }
+.stroke-now span { color: #c9d2d8; }
+
+/* meters */
+.meters { display: grid; gap: var(--s2); }
+.meter { display: grid; grid-template-columns: 108px minmax(0, 1fr) 64px; align-items: center; gap: var(--s2); font: 400 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.meter .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.meter .bar i { display: block; height: 100%; width: 0; background: var(--c); border-radius: 3px; }
+.meter output { text-align: right; color: var(--fg); }
+
+/* firing strip */
+.firing { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; }
+.firing span {
+  --g: 0; position: relative; padding: 6px 0 5px; text-align: center; border-radius: 3px;
+  font: 500 12px/1 var(--mono); font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--power) calc(var(--g) * 85%), var(--bg-2));
+  color: color-mix(in srgb, var(--bg) calc(var(--g) * 100%), var(--muted));
+  border: 1px solid var(--line);
+}
+.legend { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4); font: 400 12px var(--body); color: var(--muted); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+
+/* ---------- HUD */
+#hud {
+  position: absolute; z-index: 3; top: var(--s4); right: var(--s5);
+  display: flex; gap: var(--s4); align-items: stretch; pointer-events: none;
+}
+.gauge { display: grid; gap: 2px; padding: var(--s2) var(--s3); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); min-width: 92px; }
+.gauge .v { font: 600 26px/1 var(--display); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+.gauge .v small { font: 400 12px var(--mono); color: var(--muted); margin-left: 3px; }
+#ring { width: 112px; height: 112px; padding: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+#ring text { font-family: var(--display); }
+
+/* ---------- bottom rail */
+#rail {
+  position: absolute; z-index: 3; left: 0; right: 0; bottom: 0;
+  padding: var(--s3) var(--s5) calc(var(--s4) + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s4); flex-wrap: wrap;
+  background: linear-gradient(to top, rgba(9,13,16,0.92), rgba(9,13,16,0));
+  pointer-events: none;
+}
+#rail > * { pointer-events: auto; }
+#chapters { display: flex; gap: 2px; min-width: 0; flex-wrap: wrap; }
+#chapters button {
+  appearance: none; cursor: pointer; background: transparent; border: 0; padding: 8px 12px 10px;
+  display: grid; gap: 3px; text-align: left; color: var(--muted); border-top: 2px solid var(--line-2);
+  min-width: 0;
+}
+#chapters button b { font: 500 11px/1 var(--mono); letter-spacing: 0.12em; }
+#chapters button span { font: 600 15px/1.05 var(--display); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+#chapters button:hover { color: var(--fg); }
+#chapters button[aria-current="step"] { color: var(--fg); border-top-color: var(--accent); }
+#chapters button[aria-current="step"] b { color: var(--accent); }
+
+#dock { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; padding: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.tb {
+  appearance: none; cursor: pointer; height: 34px; min-width: 34px; padding: 0 10px; border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  background: transparent; border: 1px solid var(--line-2); color: var(--fg);
+  font: 500 12px/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+}
+.tb:hover { background: rgba(255,255,255,0.05); }
+.tb[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tb svg { width: 14px; height: 14px; fill: currentColor; }
+.slider { display: inline-flex; align-items: center; gap: var(--s2); padding: 0 6px; font: 500 11px/1 var(--mono); letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+.slider input { width: 96px; accent-color: var(--accent); }
+.sep { width: 1px; height: 22px; background: var(--line); }
+
+/* ---------- callouts, tooltip, info */
+#callouts { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.callout {
+  position: absolute; left: 0; top: 0; pointer-events: auto; cursor: pointer;
+  display: flex; align-items: center; gap: 7px; padding: 0; border: 0; background: none;
+  transform: translate(-6px, -50%); white-space: nowrap; transition: opacity .25s;
+}
+.callout i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--c, var(--accent)); background: rgba(9,13,16,0.6); box-shadow: 0 0 0 3px rgba(9,13,16,0.35); flex: none; }
+.callout span {
+  padding: 4px 8px; border-radius: 3px; background: var(--panel-solid); border: 1px solid var(--line-2);
+  font: 600 13px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg);
+}
+.callout:hover span, .callout.on span { border-color: var(--c, var(--accent)); color: var(--c, var(--accent)); }
+.callout.behind { opacity: 0.25; }
+
+#tip {
+  position: absolute; z-index: 4; left: 0; top: 0; pointer-events: none; max-width: 260px;
+  padding: 8px 10px; border-radius: 4px; background: var(--panel-solid); border: 1px solid var(--line-2);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4); opacity: 0; transition: opacity .12s;
+}
+#tip.on { opacity: 1; }
+#tip b { display: block; font: 600 15px/1.15 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+#tip span { display: block; font: 400 12px/1.4 var(--body); color: var(--muted); margin-top: 3px; }
+
+#info {
+  position: absolute; z-index: 3; right: var(--s5); top: 156px; width: min(300px, calc(100% - 48px));
+  padding: var(--s4); background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r);
+  display: grid; gap: var(--s2);
+}
+#info h2 { margin: 0; font: 600 22px/1.05 var(--display); letter-spacing: 0.03em; text-transform: uppercase; padding-right: 28px; }
+#info p { margin: 0; color: #c9d2d8; font-size: 13px; }
+#info .meta { font: 400 12px var(--mono); color: var(--muted); }
+#info .x { position: absolute; top: 10px; right: 10px; height: 26px; min-width: 26px; padding: 0; }
+#info .row { display: flex; gap: var(--s2); margin-top: var(--s1); }
+
+/* ---------- render style switch + colour key */
+.seg { display: inline-flex; }
+.seg .tb { border-radius: 0; margin-left: -1px; min-width: 52px; }
+.seg .tb:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.seg .tb:last-child { border-radius: 0 4px 4px 0; }
+#legend {
+  position: absolute; z-index: 3; right: var(--s5); bottom: 92px; width: min(300px, calc(100% - 48px));
+  padding: var(--s3); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  display: grid; gap: var(--s2);
+}
+#legend ul { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px var(--s3); }
+#legend li { display: flex; align-items: center; gap: 7px; font: 400 12px/1.25 var(--body); color: #c9d2d8; min-width: 0; }
+#legend li i { flex: none; width: 10px; height: 10px; border-radius: 2px; }
+#legend[hidden] { display: none; }
+
+/* ---------- lens panel */
+#lensPanel {
+  position: absolute; z-index: 4; right: var(--s5); bottom: 92px; width: min(320px, calc(100% - 32px));
+  max-height: calc(100% - 200px); overflow: auto;
+  padding: var(--s3) var(--s4) var(--s4); background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: var(--r);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.5); display: grid; gap: var(--s3);
+}
+#lensPanel[hidden] { display: none; }
+#lensPanel .lhead { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+#lensPanel .lhead b { font: 600 18px/1 var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
+#lensPanel .lgroup { display: grid; gap: 6px; padding-top: var(--s2); border-top: 1px solid var(--line); }
+#lensPanel .lrow { display: grid; grid-template-columns: minmax(0, 1fr) 112px 56px; align-items: center; gap: var(--s2); font: 400 12px var(--body); color: #c9d2d8; }
+#lensPanel .lrow input[type=range] { width: 100%; accent-color: var(--accent); }
+#lensPanel .lrow input[type=checkbox] { justify-self: start; width: 16px; height: 16px; accent-color: var(--accent); }
+#lensPanel .lrow output { font: 400 12px var(--mono); color: var(--fg); text-align: right; font-variant-numeric: tabular-nums; }
+#lensPanel.nodof .dofrow { opacity: 0.4; pointer-events: none; }
+#lensPanel .lnote { margin: 0; font-size: 11px; color: var(--muted); }
+
+/* ---------- loader */
+#loader { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: var(--bg); transition: opacity .6s; }
+#loader.done { opacity: 0; pointer-events: none; }
+#loader .box { width: min(320px, calc(100% - 48px)); display: grid; gap: var(--s3); }
+#loader b { font: 700 30px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; }
+#loader .track { height: 2px; background: var(--line); }
+#loader .track i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+#loader .msg { font: 400 12px var(--mono); color: var(--muted); letter-spacing: 0.06em; }
+
+/* ---------- small screens: sheet sits above the rail */
+@media (max-width: 760px) {
+  .brand { left: var(--s4); top: var(--s3); }
+  .brand span { display: none; }
+  #hud { right: var(--s4); top: var(--s3); gap: var(--s2); }
+  #ring { width: 84px; height: 84px; }
+  .gauge { min-width: 0; padding: 6px 8px; }
+  .gauge .v { font-size: 20px; }
+  #hud .gauge.speed { display: none; }
+  #panel {
+    left: var(--s4); right: var(--s4); width: auto; top: auto; bottom: 128px;
+    max-height: min(46%, 380px);
+  }
+  #panel.collapsed .scroll { display: none; }
+  #panel .head { padding: var(--s3) var(--s4) var(--s3); }
+  #panel .scroll { padding: 0 var(--s4) var(--s4); }
+  #chTitle { font-size: 26px; }
+  #panel .sheet-toggle { display: inline-flex; position: absolute; right: 10px; top: 10px; height: 28px; min-width: 28px; padding: 0; }
+  #rail { padding-inline: var(--s4); gap: var(--s2); }
+  #chapters { width: 100%; flex-wrap: nowrap; }
+  #chapters button { flex: 1; padding: 8px 4px; }
+  #chapters button span { display: none; }
+  #chapters button b { font-size: 13px; }
+  #dock { width: 100%; justify-content: space-between; }
+  .slider input { width: 72px; }
+  #info { top: auto; bottom: 128px; right: var(--s4); left: var(--s4); width: auto; }
+  #legend { display: none; }
+  .seg .tb { min-width: 0; padding: 0 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+
+<div id="app">
+  <canvas id="stage" tabindex="0" data-i18n-aria="stage.aria" aria-label="Interactive 3D model of a W16 engine. Drag to orbit, scroll to zoom."></canvas>
+  <div id="callouts" aria-hidden="false"></div>
+
+  <div class="brand"><b>W16 Anatomy</b><span data-i18n="brand.sub">16 cyl · 4 banks · 4 turbos</span></div>
+
+  <aside id="panel" aria-live="polite">
+    <div class="head">
+      <div class="kicker"><span class="num" id="chNum">01</span><span>/ 05</span><span class="rule"></span><span id="chKicker">Layout</span></div>
+      <h1 id="chTitle">Sixteen cylinders, one crankshaft</h1>
+      <button class="tb sheet-toggle" id="sheetToggle" data-i18n-aria="sheet.collapse" aria-label="Collapse text" aria-expanded="true">
+        <svg viewBox="0 0 16 16"><path d="M3 6l5 5 5-5z"/></svg>
+      </button>
+    </div>
+    <div class="scroll">
+      <div id="chBody"></div>
+      <div id="chWidget"></div>
+    </div>
+  </aside>
+
+  <div id="hud">
+    <div class="gauge"><span class="label" data-i18n="hud.crank">Crank</span><span class="v" id="hudCrank">0<small>°</small></span></div>
+    <div class="gauge speed"><span class="label" data-i18n="hud.shown">Shown at</span><span class="v" id="hudRpm">60<small>rpm</small></span></div>
+    <svg id="ring" viewBox="0 0 120 120" data-i18n-aria="ring.aria" aria-label="Four-stroke cycle of cylinder 1">
+      <g id="ringArcs"></g>
+      <line id="ringNeedle" x1="60" y1="60" x2="60" y2="14" stroke="#e6ebee" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="60" cy="60" r="4" fill="#e6ebee"/>
+      <text id="ringLabel" x="60" y="86" text-anchor="middle" font-size="13" font-weight="600" fill="#e6ebee" letter-spacing="1">INTAKE</text>
+      <text id="ringSub" x="60" y="100" text-anchor="middle" font-size="10" fill="#93a0aa" font-family="IBM Plex Mono, monospace">CYL 1 · 0°</text>
+    </svg>
+  </div>
+
+  <div id="info" hidden>
+    <button class="tb x" id="infoClose" data-i18n-aria="info.close" aria-label="Close part details"><svg viewBox="0 0 16 16"><path d="M4 3l4 4 4-4 1 1-4 4 4 4-1 1-4-4-4 4-1-1 4-4-4-4z"/></svg></button>
+    <h2 id="infoTitle">Part</h2>
+    <div class="meta" id="infoMeta"></div>
+    <p id="infoText"></p>
+    <div class="row"><button class="tb" id="infoFocus" data-i18n="info.frame">Frame part</button><button class="tb" id="infoIsolate" aria-pressed="false" data-i18n="info.isolate">Isolate</button></div>
+  </div>
+
+  <div id="rail">
+    <nav id="chapters" data-i18n-aria="nav.aria" aria-label="Chapters"></nav>
+    <div id="dock" role="toolbar" aria-label="View controls">
+      <button class="tb" id="play" aria-label="Pause animation" title="Play / pause (space)">
+        <svg id="icoPause" viewBox="0 0 16 16"><path d="M4 3h3v10H4zM9 3h3v10H9z"/></svg>
+        <svg id="icoPlay" viewBox="0 0 16 16" hidden><path d="M4 2.5v11l9-5.5z"/></svg>
+      </button>
+      <label class="slider" for="speed"><span data-i18n="dock.speed">Speed</span> <input id="speed" type="range" min="0" max="100" value="34"></label>
+      <span class="sep"></span>
+      <span class="seg" role="group" data-i18n-aria="view.aria" aria-label="Render style">
+        <button class="tb" data-view="shaded" aria-pressed="true" data-i18n="view.shaded">Shaded</button><button class="tb" data-view="cel" aria-pressed="false" data-i18n="view.cel">Cel</button><button class="tb" data-view="wire" aria-pressed="false" data-i18n="view.wire">Wire</button><button class="tb" data-view="clay" aria-pressed="false" data-i18n="view.clay">Clay</button>
+      </span>
+      <button class="tb" id="xray" aria-pressed="true" title="X" data-i18n="dock.xray">X-ray</button>
+      <label class="slider" for="explode"><span data-i18n="dock.explode">Explode</span> <input id="explode" type="range" min="0" max="100" value="0"></label>
+      <span class="sep"></span>
+      <button class="tb" id="reset" title="R" data-i18n="dock.reset">Reset view</button>
+      <button class="tb" id="lensBtn" aria-expanded="false" aria-controls="lensPanel" data-i18n="lens.button">Lens</button>
+      <span class="sep"></span>
+      <button class="tb" id="lang" aria-label="Deutsch" title="Deutsch">DE</button>
+    </div>
+  </div>
+
+  <div id="legend" hidden></div>
+  <div id="lensPanel" hidden></div>
+  <div id="tip"><b></b><span></span></div>
+
+  <div id="loader">
+    <div class="box">
+      <b>W16 Anatomy</b>
+      <div class="track"><i id="loadBar"></i></div>
+      <div class="msg" id="loadMsg">Loading engine model… · Lade Motormodell…</div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
+    "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.8.3/build/index.module.js"
+  }
+}
+</script>
+<!--APP-->
